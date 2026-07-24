@@ -112,7 +112,19 @@ body {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.12); }
 }
-
+/* Force the AR scene, its WebGL canvas, and MindAR's camera video
+   to fill the entire viewport as a fixed background layer, since
+   `embedded` mode on a-scene does not size itself automatically. */
+#ar-scene,
+#ar-scene canvas,
+#ar-scene video {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  z-index: 0;
+}
 /* ==========================================================================
    Error Screen
    ========================================================================== */
