@@ -406,16 +406,26 @@
     debugPanel.textContent = "Debug panel ready. Point camera at marker…";
     document.body.appendChild(debugPanel);
 
-    function updateDebugPanel() {
+function updateDebugPanel() {
       const modelEntity = document.getElementById("temple-model-entity");
       const anchor = document.getElementById("temple-anchor");
       const targetRoot = document.getElementById("target-root");
+      const camera = document.getElementById("ar-camera");
       const mesh = modelEntity && modelEntity.getObject3D("mesh");
+      const renderer = sceneEl.renderer;
+      const info = renderer ? renderer.info.render : {};
+      const camObj = camera && camera.getObject3D("camera");
+      const camPos = camObj ? camObj.getWorldPosition(new AFRAME.THREE.Vector3()) : null;
+      const anchorPos = anchor ? anchor.object3D.getWorldPosition(new AFRAME.THREE.Vector3()) : null;
       const lines = [
         "mesh loaded: " + !!mesh,
+        "mesh.visible: " + (mesh ? mesh.visible : "n/a"),
         "target visible: " + (targetRoot ? targetRoot.object3D.visible : "n/a"),
         "anchor scale: " + (anchor ? JSON.stringify(anchor.object3D.scale) : "n/a"),
-        "anchor position: " + (anchor ? JSON.stringify(anchor.object3D.position) : "n/a"),
+        "anchor world pos: " + (anchorPos ? anchorPos.x.toFixed(2) + "," + anchorPos.y.toFixed(2) + "," + anchorPos.z.toFixed(2) : "n/a"),
+        "camera world pos: " + (camPos ? camPos.x.toFixed(2) + "," + camPos.y.toFixed(2) + "," + camPos.z.toFixed(2) : "n/a"),
+        "render calls: " + info.calls,
+        "triangles drawn: " + info.triangles,
         "anchorsReady: " + AppState.anchorsReady,
         "isTracking: " + AppState.isTracking,
       ];
