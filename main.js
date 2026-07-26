@@ -395,7 +395,33 @@
       setProgress(100, "Ready");
       window.setTimeout(hideLoadingScreen, 300);
     });
+// TEMPORARY: on-screen debug panel — shows model/tracking status
+    // directly on the page so no manual console typing is needed on
+    // mobile. Remove this whole block before final submission.
+    const debugPanel = document.createElement("div");
+    debugPanel.style.cssText =
+      "position:fixed;top:0;left:0;right:0;z-index:99999;" +
+      "background:rgba(0,0,0,0.85);color:#0f0;font:12px monospace;" +
+      "padding:8px;max-height:40vh;overflow:auto;white-space:pre-wrap;";
+    debugPanel.textContent = "Debug panel ready. Point camera at marker…";
+    document.body.appendChild(debugPanel);
 
+    function updateDebugPanel() {
+      const modelEntity = document.getElementById("temple-model-entity");
+      const anchor = document.getElementById("temple-anchor");
+      const targetRoot = document.getElementById("target-root");
+      const mesh = modelEntity && modelEntity.getObject3D("mesh");
+      const lines = [
+        "mesh loaded: " + !!mesh,
+        "target visible: " + (targetRoot ? targetRoot.object3D.visible : "n/a"),
+        "anchor scale: " + (anchor ? JSON.stringify(anchor.object3D.scale) : "n/a"),
+        "anchor position: " + (anchor ? JSON.stringify(anchor.object3D.position) : "n/a"),
+        "anchorsReady: " + AppState.anchorsReady,
+        "isTracking: " + AppState.isTracking,
+      ];
+      debugPanel.textContent = lines.join("\n");
+    }
+    setInterval(updateDebugPanel, 1000);
     sceneEl.addEventListener("arError", () => {
       window.clearTimeout(watchdog);
       showError(
