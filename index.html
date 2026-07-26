@@ -2,97 +2,207 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  />
+  <meta name="description" content="India Mathematics AR — CBSE Class 6 Mathematics competition WebAR experience" />
   <meta name="theme-color" content="#000000" />
-  <meta name="description" content="India Mathematics AR - CBSE Class 6 educational WebAR experience with MindAR image tracking." />
   <title>India Mathematics AR</title>
 
+  <!-- Project stylesheet -->
   <link rel="stylesheet" href="./style.css" />
 
-  <script src="https://aframe.io/releases/1.8.0/aframe.min.js"></script>
+  <!-- A-Frame — pinned to 1.4.2, the version MindAR 1.2.5's official
+       examples are built and tested against. Newer A-Frame releases
+       (1.5+) have known camera/canvas rendering regressions with this
+       MindAR version. -->
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+  <!-- MindAR Image Tracking for A-Frame (latest stable) -->
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 </head>
 <body>
-  <div id="loading-screen" class="loading-screen" aria-live="polite" aria-busy="true">
-    <div class="loading-panel">
-      <div class="app-title">India Mathematics AR</div>
-      <div class="loading-subtitle">Preparing camera and image tracking</div>
-      <div class="progress-track" aria-hidden="true">
-        <div id="progress-bar" class="progress-bar"></div>
+
+  <!-- ============================================================
+       LOADING SCREEN
+       Shown while A-Frame, MindAR and the temple.glb model load.
+       ============================================================ -->
+  <div id="loading-screen" role="status" aria-live="polite">
+    <div class="loading-content">
+      <div class="loading-logo">🧮</div>
+      <h1 class="loading-title">India Mathematics AR</h1>
+      <p class="loading-subtitle">CBSE Class 6 &mdash; Geometry in Ancient Architecture</p>
+
+      <div class="progress-bar-track">
+        <div id="progress-bar-fill" class="progress-bar-fill"></div>
       </div>
-      <div id="progress-text" class="progress-text">Loading 0%</div>
-      <div id="loading-hint" class="loading-hint">Please allow camera access when prompted.</div>
+      <p id="progress-label" class="progress-label">Loading assets… 0%</p>
+
+      <p class="loading-hint">Please allow camera access when prompted.</p>
     </div>
   </div>
 
-  <div id="status-overlay" class="status-overlay" aria-live="polite">
-    <div id="status-badge" class="status-badge">Starting camera...</div>
+  <!-- ============================================================
+       ERROR SCREEN
+       Shown if camera permission is denied, HTTPS is missing,
+       or the browser does not support WebAR.
+       ============================================================ -->
+  <div id="error-screen" class="hidden" role="alert">
+    <div class="error-content">
+      <div class="error-icon">⚠️</div>
+      <h2>Camera Unavailable</h2>
+      <p id="error-message">
+        We couldn't access your camera. Please check the troubleshooting
+        steps below.
+      </p>
+      <ul class="error-list">
+        <li>Allow camera permission for this site in your browser settings.</li>
+        <li>This page must be served over <strong>HTTPS</strong> (or localhost).</li>
+        <li>Close any other app currently using the camera.</li>
+        <li>Use the latest version of <strong>Chrome</strong> on Android.</li>
+      </ul>
+      <button id="retry-button" class="retry-button" type="button">Try Again</button>
+    </div>
   </div>
 
-  <div id="label-layer" class="label-layer" aria-hidden="true">
-    <div id="label1" class="ar-label label-1">🔺 TRIANGLES</div>
-    <div id="line1" class="leader-line line-1"></div>
-
-    <div id="label2" class="ar-label label-2">📐 GEOMETRY</div>
-    <div id="line2" class="leader-line line-2"></div>
-
-    <div id="label3" class="ar-label label-3">⚖ SYMMETRY</div>
-    <div id="line3" class="leader-line line-3"></div>
-
-    <div id="label4" class="ar-label label-4">🏛 ANCIENT INDIAN ARCHITECTURE</div>
+  <!-- ============================================================
+       SCANNING OVERLAY
+       Guides the user to point the camera at the printed marker.
+       Hidden automatically once the marker is detected.
+       ============================================================ -->
+  <div id="scanning-overlay" class="hidden">
+    <div class="scan-frame">
+      <span class="scan-corner top-left"></span>
+      <span class="scan-corner top-right"></span>
+      <span class="scan-corner bottom-left"></span>
+      <span class="scan-corner bottom-right"></span>
+      <div class="scan-line"></div>
+    </div>
+    <p class="scan-instruction">Point your camera at the temple marker</p>
   </div>
 
+  <!-- ============================================================
+       AR LABEL OVERLAY
+       Screen-space HTML labels with SVG leader lines. Positions are
+       recalculated every frame in main.js by projecting 3D anchor
+       points (attached to the temple model) into 2D screen space.
+       ============================================================ -->
+  <div id="ar-labels-container" class="hidden">
+    <svg id="leader-line-svg" preserveAspectRatio="none"></svg>
+
+    <div id="label-triangles" class="ar-label label-yellow">
+      <span class="label-icon">🔺</span>
+      <span class="label-text">TRIANGLES</span>
+    </div>
+
+    <div id="label-geometry" class="ar-label label-green">
+      <span class="label-icon">📐</span>
+      <span class="label-text">GEOMETRY</span>
+    </div>
+
+    <div id="label-symmetry" class="ar-label label-cyan">
+      <span class="label-icon">⚖️</span>
+      <span class="label-text">SYMMETRY</span>
+    </div>
+
+    <div id="label-architecture" class="ar-label label-orange label-title">
+      <span class="label-icon">🏛️</span>
+      <span class="label-text">ANCIENT INDIAN ARCHITECTURE</span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       AR SCENE
+       ============================================================ -->
   <a-scene
-    id="scene"
-    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0001; filterBeta: 8"
+    id="ar-scene"
+    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiScanning: no; uiLoading: no; filterMinCF: 0.0001; filterBeta: 0.01; missTolerance: 5; warmupTolerance: 5;"
+    color-space="sRGB"
+    renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true; alpha: true"
     vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: false"
-    renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true; alpha: true; precision: mediump; logarithmicDepthBuffer: false"
-    background="color: black"
+    device-orientation-permission-ui="enabled: true"
     embedded
+    loading-screen="enabled: false"
   >
-    <a-assets timeout="10000">
-      <a-asset-item id="templeModel" src="./assets/temple.glb"></a-asset-item>
+    <a-assets timeout="60000">
+      <a-asset-item id="temple-model" src="./assets/temple.glb"></a-asset-item>
     </a-assets>
 
-    <a-entity light="type: ambient; color: #ffffff; intensity: 1.15"></a-entity>
-    <a-entity light="type: directional; color: #fff4d6; intensity: 2.6; castShadow: true" position="1.5 3 2"></a-entity>
-    <a-entity light="type: directional; color: #ffd36b; intensity: 1.2" position="-2 2 1"></a-entity>
+    <!-- Scene-wide lighting: always lit regardless of marker tracking -->
+    <a-entity light="type: ambient; color: #ffffff; intensity: 0.9"></a-entity>
+    <a-entity
+      light="type: directional; color: #fff4dd; intensity: 1.1; castShadow: true; shadowMapHeight: 1024; shadowMapWidth: 1024"
+      position="1 3 2"
+    ></a-entity>
 
-    <a-camera
-      id="camera"
-      position="0 0 0"
-      look-controls="enabled: false"
-      cursor="rayOrigin: mouse"
-      raycaster="objects: .clickable"
-    ></a-camera>
+    <!-- MindAR image target (index 0 = targets.mind entry 0, i.e. Marker.jpg) -->
+    <a-entity id="target-root" mindar-image-target="targetIndex: 0" target-events>
 
-    <a-entity id="anchor" mindar-image-target="targetIndex: 0">
+      <!-- Root that receives rise / scale / rotation animation.
+           Initial pose matches animation__rise / animation__scale "from"
+           values so the temple starts hidden below/small before reveal. -->
       <a-entity
-        id="templeRig"
-        position="0 -0.16 0"
-        rotation="0 0 0"
+        id="temple-anchor"
+        position="0 -0.3 0"
         scale="0.01 0.01 0.01"
+        animation__rise="property: position; from: 0 -0.3 0; to: 0 0 0; dur: 1200; easing: easeOutBack; startEvents: temple-rise"
+        animation__scale="property: scale; from: 0.01 0.01 0.01; to: 1 1 1; dur: 1200; easing: easeOutBack; startEvents: temple-rise"
+        animation__rotate="property: rotation; from: 0 0 0; to: 0 360 0; dur: 20000; easing: linear; loop: true; startEvents: temple-rotate-start; pauseEvents: temple-rotate-pause; resumeEvents: temple-rotate-resume"
       >
+
+        <!-- Golden accent light, pulsed on marker-found for the "golden
+             glow" effect. Lives under the target so it tracks the marker. -->
         <a-entity
-          id="templeWrap"
-          gltf-model="#templeModel"
-          position="0 0 0"
-          rotation="0 180 0"
-          shadow="cast: true; receive: true"
-          class="clickable"
+          id="glow-light"
+          light="type: point; color: #ffcc55; intensity: 0; distance: 6; decay: 2"
+          position="0 0.6 0"
+          animation__glowpulse="property: light.intensity; from: 0; to: 1.4; dir: alternate; dur: 900; loop: true; easing: easeInOutSine; startEvents: temple-glow"
         ></a-entity>
 
+        <!-- Temple 3D model, centered and standing on the marker plane.
+             temple-placement (main.js) auto-scales + grounds it at runtime. -->
         <a-entity
-          id="goldGlow"
-          geometry="primitive: sphere; radius: 0.42"
-          material="color: #f9d66b; emissive: #f5c542; emissiveIntensity: 1.8; transparent: true; opacity: 0.18; shader: standard"
-          position="0 0.95 0"
+          id="temple-model-entity"
+          gltf-model="#temple-model"
+          scale="1 1 1"
+          position="0 0 0"
+          rotation="0 0 0"
+          shadow="cast: true; receive: true"
+          temple-placement
+        ></a-entity>
+
+        <!-- Soft contact shadow disc so the temple visually "stands" on the marker -->
+        <a-entity
+          geometry="primitive: circle; radius: 0.3; segments: 48"
+          material="color: #000000; opacity: 0.35; transparent: true; shader: flat"
+          rotation="-90 0 0"
+          position="0 0.001 0"
+        ></a-entity>
+
+        <!-- Golden glow ring beneath the temple, pulsed on marker-found -->
+        <a-entity
+          id="glow-ring"
+          geometry="primitive: ring; radiusInner: 0.28; radiusOuter: 0.42; segments: 48"
+          material="color: #ffd76a; shader: flat; opacity: 0; transparent: true; side: double"
+          rotation="-90 0 0"
+          position="0 0.002 0"
+          animation__ringglow="property: material.opacity; from: 0; to: 0.55; dir: alternate; dur: 1400; loop: true; easing: easeInOutSine; startEvents: temple-glow"
         ></a-entity>
       </a-entity>
     </a-entity>
+
+    <!-- AR camera: MindAR drives its pose, look-controls must stay disabled -->
+    <a-camera
+      id="ar-camera"
+      position="0 0 0"
+      look-controls="enabled: false"
+      wasd-controls="enabled: false"
+      cursor="rayOrigin: mouse"
+    ></a-camera>
   </a-scene>
 
+  <!-- Project logic -->
   <script src="./main.js"></script>
 </body>
 </html>
