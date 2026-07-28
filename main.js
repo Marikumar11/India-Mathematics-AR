@@ -26,7 +26,7 @@
 
   // Desired horizontal footprint (world units / metres) of the temple
   // once auto-scaled, so it sits neatly within the printed marker.
-  const DESIRED_FOOTPRINT = 0.5;
+  const DESIRED_FOOTPRINT = 500;
 
   // Duration (ms) of the rise + scale reveal animation. Must match the
   // `dur` values set on animation__rise / animation__scale in index.html.
@@ -423,6 +423,7 @@ function updateDebugPanel() {
         "target visible: " + (targetRoot ? targetRoot.object3D.visible : "n/a"),
         "anchor scale: " + (anchor ? JSON.stringify(anchor.object3D.scale) : "n/a"),
         "anchor world pos: " + (anchorPos ? anchorPos.x.toFixed(2) + "," + anchorPos.y.toFixed(2) + "," + anchorPos.z.toFixed(2) : "n/a"),
+         "target-root scale: " + (targetRoot ? JSON.stringify(targetRoot.object3D.scale) : "n/a"),
         "camera world pos: " + (camPos ? camPos.x.toFixed(2) + "," + camPos.y.toFixed(2) + "," + camPos.z.toFixed(2) : "n/a"),
         "render calls: " + info.calls,
         "triangles drawn: " + info.triangles,
