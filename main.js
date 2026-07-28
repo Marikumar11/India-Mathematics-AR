@@ -156,13 +156,12 @@
       });
     },
 
-   placeModel: function () {
+    placeModel: function () {
       const mesh = this.el.getObject3D("mesh");
       if (!mesh) return;
 
       const THREE = AFRAME.THREE;
 
-     
       // Ensure the entity starts from a neutral transform before we
       // measure it — position/scale are set explicitly here so the
       // math below is predictable no matter what index.html specifies.
