@@ -1,27 +1,14 @@
-/* ==========================================================================
-   India Mathematics AR — final cleaned main.js
-   --------------------------------------------------------------------------
-   Responsibilities:
-     1. Track loading progress.
-     2. Handle camera / permission / AR errors gracefully.
-     3. Auto-center and ground temple.glb on the marker.
-     4. Run rise + scale + glow reveal once target is found.
-     5. Show four labels sequentially in screen space with leader lines.
-   ========================================================================== */
-
 (function () {
   "use strict";
 
   const THREE = AFRAME.THREE;
 
   const state = {
-    sceneReady: false,
-    arReady: false,
     targetFound: false,
     modelLoaded: false,
     modelPlaced: false,
-    labelsShown: false,
     firstRevealDone: false,
+    labelsShown: false,
     templeHeight: 0,
     labelTimers: [],
     overlayRAF: 0,
@@ -31,7 +18,6 @@
     modelTargetScale: 0.35,
     riseOffsetY: -0.12,
     labelDelayMs: 850,
-    rotateDurationMs: 26000,
     readinessTimeoutMs: 30000,
   };
 
@@ -54,11 +40,8 @@
   };
 
   const sceneEl = document.getElementById("ar-scene");
-  const targetRoot = document.getElementById("target-root");
   const templeAnchor = document.getElementById("temple-anchor");
   const templeModelEntity = document.getElementById("temple-model-entity");
-  const glowLight = document.getElementById("glow-light");
-  const glowRing = document.getElementById("glow-ring");
   const cameraEl = document.getElementById("ar-camera");
 
   const LABELS = [
@@ -128,8 +111,8 @@
   function computeBounds(root) {
     const box = new THREE.Box3();
     box.makeEmpty();
-
     root.updateMatrixWorld(true);
+
     root.traverse((node) => {
       if (node.isMesh && node.geometry) {
         if (!node.geometry.boundingBox) {
@@ -142,9 +125,36 @@
     return box;
   }
 
+  function normalizeModelMaterials(root) {
+    root.traverse((node) => {
+      if (!node.isMesh || !node.material) return;
+      node.visible = true;
+      if (Array.isArray(node.material)) {
+        node.material.forEach((mat) => {
+          if (!mat) return;
+          mat.opacity = 1;
+          mat.transparent = false;
+          mat.metalness = 0;
+          mat.roughness = 1;
+          mat.needsUpdate = true;
+        });
+      } else {
+        node.material.opacity = 1;
+        node.material.transparent = false;
+        node.material.metalness = 0;
+        node.material.roughness = 1;
+        node.material.needsUpdate = true;
+      }
+      node.castShadow = false;
+      node.receiveShadow = false;
+    });
+  }
+
   function placeTempleModel() {
     const meshRoot = getMeshRoot();
     if (!meshRoot) return;
+
+    normalizeModelMaterials(meshRoot);
 
     templeModelEntity.object3D.position.set(0, 0, 0);
     templeModelEntity.object3D.rotation.set(0, 0, 0);
@@ -312,12 +322,10 @@
     dom.retryButton.addEventListener("click", () => window.location.reload());
 
     sceneEl.addEventListener("loaded", () => {
-      state.sceneReady = true;
       setProgress(25, "Scene ready");
     });
 
     sceneEl.addEventListener("arReady", () => {
-      state.arReady = true;
       setProgress(60, "Camera ready");
       hideLoading();
     });
@@ -334,13 +342,17 @@
     dom.leaderSvg.setAttribute("width", window.innerWidth);
     dom.leaderSvg.setAttribute("height", window.innerHeight);
 
-    const timeoutId = window.setTimeout(() => {
+    window.setTimeout(() => {
+      if (!state.modelPlaced) {
+        setProgress(40, "Waiting for model");
+      }
+    }, 4000);
+
+    window.setTimeout(() => {
       if (!state.arReady) {
         showError("The camera did not start in time. Please check permission and reload.");
       }
     }, CONFIG.readinessTimeoutMs);
-
-    window.addEventListener("beforeunload", () => window.clearTimeout(timeoutId));
 
     setProgress(10, "Starting");
     requestAnimationFrame(updateLabelOverlay);
