@@ -1,26 +1,70 @@
+/* ==========================================================================
+   India Mathematics AR — main.js
+   CBSE Class 6 Mathematics Competition WebAR Experience
+
+   Responsibilities:
+     1. Track real loading progress (assets + MindAR readiness).
+     2. Handle camera / permission errors gracefully.
+     3. Auto-scale and ground the temple.glb model on the marker so it
+        never floats, regardless of the model's original size/pivot.
+     4. Sequence the "rise + scale + golden glow" reveal, then loop a
+        slow rotation forever while the marker is tracked.
+     5. Track four educational labels in screen space with leader lines
+        that point at real 3D anchor points on the temple, revealing
+        them one after another.
+
+   No build step, no modules — plain ES2017+ JavaScript, runs directly
+   in the browser via <script src="./main.js"> in index.html.
+   ========================================================================== */
+
 (function () {
   "use strict";
 
-  const THREE = AFRAME.THREE;
+  /* ------------------------------------------------------------------
+     Constants
+     ------------------------------------------------------------------ */
 
-  const state = {
-    targetFound: false,
-    modelLoaded: false,
-    modelPlaced: false,
-    firstRevealDone: false,
-    labelsShown: false,
-    templeHeight: 0,
-    labelTimers: [],
-    overlayRAF: 0,
-    frozenPose: null,
+  // Desired horizontal footprint (world units / metres) of the temple
+  // once auto-scaled, so it sits neatly within the printed marker.
+  const DESIRED_FOOTPRINT = 500;
+
+  // Duration (ms) of the rise + scale reveal animation. Must match the
+  // `dur` values set on animation__rise / animation__scale in index.html.
+  const RISE_DURATION_MS = 1200;
+
+  // Delay (ms) between each label fading in.
+  const LABEL_STAGGER_MS = 850;
+
+  // Safety timeout: if MindAR never reports ready (e.g. camera stuck
+  // waiting on a permission dialog the user never answers), stop
+  // showing a spinning progress bar and surface the error screen.
+  const READY_WATCHDOG_MS = 30000;
+
+  /* ------------------------------------------------------------------
+     Shared mutable state
+     ------------------------------------------------------------------ */
+
+  const AppState = {
+    hasAppearedOnce: false, // has the rise animation played at least once?
+    anchorsReady: false, // has the model finished loading + been placed?
+    isTracking: false, // is the marker currently detected?
+    templeHeight: 0, // scaled model height (world units), set after placement
+    labelTimers: [], // pending setTimeout ids for the label reveal sequence
   };
 
-  const CONFIG = {
-    modelTargetScale: 0.35,
-    riseOffsetY: -0.12,
-    labelDelayMs: 850,
-    readinessTimeoutMs: 30000,
+  // Local-space anchor points (relative to #temple-anchor) that the
+  // labels' leader lines point to. Populated once the model is placed;
+  // Y values are fractions of the scaled model height.
+  const LabelAnchors = {
+    triangles: new AFRAME.THREE.Vector3(),
+    geometry: new AFRAME.THREE.Vector3(),
+    symmetry: new AFRAME.THREE.Vector3(),
+    architecture: new AFRAME.THREE.Vector3(),
   };
+
+  /* ------------------------------------------------------------------
+     DOM references
+     ------------------------------------------------------------------ */
 
   const dom = {
     loadingScreen: document.getElementById("loading-screen"),
@@ -40,348 +84,367 @@
     },
   };
 
-  const sceneEl = document.getElementById("ar-scene");
-  const targetRoot = document.getElementById("target-root");
-  const templeAnchor = document.getElementById("temple-anchor");
-  const templeModelEntity = document.getElementById("temple-model-entity");
-  const cameraEl = document.getElementById("ar-camera");
+  // Screen-space pixel offset applied from the projected 3D anchor to
+  // where each label bubble is drawn, so labels fan out around the
+  // temple instead of overlapping each other or the model.
+  const LABEL_OFFSETS = {
+    triangles: { dx: 110, dy: -40 },
+    geometry: { dx: -120, dy: 10 },
+    symmetry: { dx: 120, dy: 40 },
+    architecture: { dx: 0, dy: 90 },
+  };
 
-  const LABELS = [
-    { key: "triangles", ratio: 0.92, dx: 120, dy: -55, color: "#ffd700" },
-    { key: "geometry", ratio: 0.58, dx: -135, dy: 0, color: "#34d67a" },
-    { key: "symmetry", ratio: 0.30, dx: 130, dy: 40, color: "#38e0ff" },
-    { key: "architecture", ratio: 0.04, dx: 0, dy: 92, color: "#ff8c3c" },
-  ];
+  const LABEL_COLORS = {
+    triangles: "#ffd700",
+    geometry: "#34d67a",
+    symmetry: "#38e0ff",
+    architecture: "#ff8c3c",
+  };
 
-  function setProgress(percent, text) {
-    const p = Math.max(0, Math.min(100, Math.round(percent)));
-    dom.progressFill.style.width = p + "%";
-    dom.progressLabel.textContent = (text || "Loading") + " " + p + "%";
+  /* ------------------------------------------------------------------
+     Loading progress
+     ------------------------------------------------------------------ */
+
+  function setProgress(percent, message) {
+    const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+    dom.progressFill.style.width = clamped + "%";
+    dom.progressLabel.textContent = (message || "Loading assets…") + " " + clamped + "%";
   }
 
-  function showError(message) {
-    dom.errorMessage.textContent = message;
-    dom.loadingScreen.classList.add("hidden");
-    dom.scanningOverlay.classList.add("hidden");
-    dom.errorScreen.classList.remove("hidden");
-  }
-
-  function hideLoading() {
+  function hideLoadingScreen() {
     dom.loadingScreen.classList.add("hidden");
     dom.scanningOverlay.classList.remove("hidden");
   }
 
-  function clearLabelTimers() {
-    state.labelTimers.forEach((id) => window.clearTimeout(id));
-    state.labelTimers.length = 0;
+  function showError(message) {
+    dom.loadingScreen.classList.add("hidden");
+    dom.scanningOverlay.classList.add("hidden");
+    dom.errorMessage.textContent = message;
+    dom.errorScreen.classList.remove("hidden");
   }
 
-  function hideLabels() {
-    state.labelsShown = false;
-    dom.labelsContainer.classList.add("hidden");
-    Object.values(dom.labels).forEach((el) => el.classList.remove("visible"));
-    dom.leaderSvg.querySelectorAll("line").forEach((line) => line.remove());
-  }
-
-  function showLabelsSequentially() {
-    if (state.labelsShown) return;
-    state.labelsShown = true;
-    dom.labelsContainer.classList.remove("hidden");
-
-    const order = ["triangles", "geometry", "symmetry", "architecture"];
-    order.forEach((key, index) => {
-      const id = window.setTimeout(() => {
-        dom.labels[key].classList.add("visible");
-      }, index * CONFIG.labelDelayMs);
-      state.labelTimers.push(id);
-    });
-  }
+  /* ------------------------------------------------------------------
+     Pre-flight checks: secure context is required by getUserMedia in
+     every modern browser (HTTPS, or http://localhost during dev).
+     ------------------------------------------------------------------ */
 
   function isSecureContextOk() {
     const host = window.location.hostname;
-    return window.isSecureContext || host === "localhost" || host === "127.0.0.1";
+    const isLocalhost = host === "localhost" || host === "127.0.0.1";
+    return window.isSecureContext || isLocalhost;
   }
 
   function hasCameraSupport() {
     return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   }
 
-  function getMeshRoot() {
-    return templeModelEntity.getObject3D("mesh");
-  }
+  /* ------------------------------------------------------------------
+     A-Frame component: temple-placement
+     Auto-scales and grounds the loaded glTF so it always stands on
+     the marker, centred, regardless of the source model's original
+     dimensions or pivot point.
+     ------------------------------------------------------------------ */
 
-  function computeBounds(root) {
-    const box = new THREE.Box3();
-    box.makeEmpty();
-    root.updateMatrixWorld(true);
-
-    root.traverse((node) => {
-      if (node.isMesh && node.geometry) {
-        if (!node.geometry.boundingBox) {
-          node.geometry.computeBoundingBox();
-        }
-        box.expandByObject(node);
-      }
-    });
-
-    return box;
-  }
-
-  function normalizeModelMaterials(root) {
-    root.traverse((node) => {
-      if (!node.isMesh || !node.material) return;
-      node.visible = true;
-      const materials = Array.isArray(node.material) ? node.material : [node.material];
-      materials.forEach((mat) => {
-        if (!mat) return;
-        mat.opacity = 1;
-        mat.transparent = false;
-        mat.metalness = 0;
-        mat.roughness = 1;
-        mat.needsUpdate = true;
+  AFRAME.registerComponent("temple-placement", {
+    init: function () {
+      this.el.addEventListener("model-loaded", this.placeModel.bind(this));
+      this.el.addEventListener("model-error", function () {
+        showError(
+          "The 3D temple model failed to load. Please check that " +
+            "assets/temple.glb exists and reload the page."
+        );
       });
-      node.castShadow = false;
-      node.receiveShadow = false;
+    },
+
+    placeModel: function () {
+      const mesh = this.el.getObject3D("mesh");
+      if (!mesh) return;
+
+      const THREE = AFRAME.THREE;
+
+      // Ensure the entity starts from a neutral transform before we
+      // measure it — position/scale are set explicitly here so the
+      // math below is predictable no matter what index.html specifies.
+      this.el.object3D.position.set(0, 0, 0);
+      this.el.object3D.scale.set(1, 1, 1);
+      this.el.object3D.rotation.set(0, 0, 0);
+      this.el.object3D.updateMatrixWorld(true);
+
+      // Measure the raw model.
+      const rawBox = new THREE.Box3().setFromObject(mesh);
+      const rawSize = new THREE.Vector3();
+      rawBox.getSize(rawSize);
+
+      // Uniform scale factor so the widest horizontal dimension fits
+      // the desired footprint on the printed marker.
+      const horizontal = Math.max(rawSize.x, rawSize.z) || 1;
+      const scaleFactor = DESIRED_FOOTPRINT / horizontal;
+
+      this.el.object3D.scale.set(scaleFactor, scaleFactor, scaleFactor);
+      this.el.object3D.updateMatrixWorld(true);
+
+      // Re-measure at the final scale to find exactly how far to shift
+      // the model so its lowest point sits at y = 0 (standing on the
+      // marker, never floating) and it is centred on X/Z.
+      const scaledBox = new THREE.Box3().setFromObject(mesh);
+      const scaledCenter = new THREE.Vector3();
+      scaledBox.getCenter(scaledCenter);
+
+      this.el.object3D.position.set(-scaledCenter.x, -scaledBox.min.y, -scaledCenter.z);
+      this.el.object3D.updateMatrixWorld(true);
+
+      const scaledHeight = scaledBox.max.y - scaledBox.min.y;
+      AppState.templeHeight = scaledHeight;
+
+      // Define the four label anchor points relative to #temple-anchor
+      // (the parent that also receives the rise/rotate animation), so
+      // labels stay attached to the temple wherever it moves/rotates.
+      LabelAnchors.triangles.set(0, scaledHeight * 0.93, 0); // upper tower (gopuram)
+      LabelAnchors.geometry.set(0, scaledHeight * 0.55, 0); // mid-body carvings
+      LabelAnchors.symmetry.set(0, scaledHeight * 0.28, 0); // central vertical axis
+      LabelAnchors.architecture.set(0, scaledHeight * 0.02, 0); // base / plinth
+
+      AppState.anchorsReady = true;
+    },
+  });
+
+  /* ------------------------------------------------------------------
+     A-Frame component: target-events
+     Wires MindAR's targetFound / targetLost events to the reveal
+     animation sequence and the label overlay.
+     ------------------------------------------------------------------ */
+
+  AFRAME.registerComponent("target-events", {
+    init: function () {
+      this.templeAnchor = document.getElementById("temple-anchor");
+      this.el.addEventListener("targetFound", this.onTargetFound.bind(this));
+      this.el.addEventListener("targetLost", this.onTargetLost.bind(this));
+    },
+
+    onTargetFound: function () {
+      AppState.isTracking = true;
+      dom.scanningOverlay.classList.add("hidden");
+      clearLabelTimers();
+      hideAllLabels();
+
+      if (!AppState.hasAppearedOnce) {
+        // First detection: play the full rise + scale + glow flourish,
+        // then start the infinite rotation once it settles.
+        AppState.hasAppearedOnce = true;
+        this.templeAnchor.emit("temple-rise");
+        this.templeAnchor.emit("temple-glow");
+
+        window.setTimeout(() => {
+          this.templeAnchor.emit("temple-rotate-start");
+          revealLabelsSequentially();
+        }, RISE_DURATION_MS);
+      } else {
+        // Marker re-acquired after briefly losing tracking: resume the
+        // rotation from where it paused and replay the label sequence.
+        this.templeAnchor.emit("temple-rotate-resume");
+        revealLabelsSequentially();
+      }
+    },
+
+    onTargetLost: function () {
+      AppState.isTracking = false;
+      dom.scanningOverlay.classList.remove("hidden");
+      this.templeAnchor.emit("temple-rotate-pause");
+      clearLabelTimers();
+      hideAllLabels();
+      dom.labelsContainer.classList.add("hidden");
+    },
+  });
+
+  /* ------------------------------------------------------------------
+     Label reveal sequencing
+     ------------------------------------------------------------------ */
+
+  function clearLabelTimers() {
+    AppState.labelTimers.forEach(window.clearTimeout);
+    AppState.labelTimers = [];
+  }
+
+  function hideAllLabels() {
+    Object.values(dom.labels).forEach((el) => el.classList.remove("visible"));
+  }
+
+  function revealLabelsSequentially() {
+    dom.labelsContainer.classList.remove("hidden");
+    const order = ["triangles", "geometry", "symmetry", "architecture"];
+    order.forEach((key, index) => {
+      const timerId = window.setTimeout(() => {
+        dom.labels[key].classList.add("visible");
+      }, index * LABEL_STAGGER_MS);
+      AppState.labelTimers.push(timerId);
     });
   }
 
-  function placeTempleModel() {
-    const meshRoot = getMeshRoot();
-    if (!meshRoot) return;
+  /* ------------------------------------------------------------------
+     Per-frame screen-space projection of label anchors + leader lines
+     ------------------------------------------------------------------ */
 
-    normalizeModelMaterials(meshRoot);
+  function updateLabelOverlay() {
+    requestAnimationFrame(updateLabelOverlay);
 
-    templeModelEntity.object3D.position.set(0, 0, 0);
-    templeModelEntity.object3D.rotation.set(0, 0, 0);
-    templeModelEntity.object3D.scale.set(1, 1, 1);
-    templeModelEntity.object3D.updateMatrixWorld(true);
+    if (!AppState.isTracking || !AppState.anchorsReady) return;
 
-    const rawBox = computeBounds(meshRoot);
-    if (rawBox.isEmpty()) {
-      showError("The temple model bounds are empty. Please verify temple.glb.");
-      return;
-    }
+    const sceneEl = document.getElementById("ar-scene");
+    const cameraEl = document.getElementById("ar-camera");
+    const anchorEl = document.getElementById("temple-anchor");
+    if (!sceneEl || !cameraEl || !anchorEl || !sceneEl.renderer) return;
 
-    const rawSize = new THREE.Vector3();
-    const rawCenter = new THREE.Vector3();
-    rawBox.getSize(rawSize);
-    rawBox.getCenter(rawCenter);
+    const camera = cameraEl.getObject3D("camera");
+    const renderer = sceneEl.renderer;
+    if (!camera || !renderer) return;
 
-    const horizontal = Math.max(rawSize.x, rawSize.z, 0.0001);
-    const scale = CONFIG.modelTargetScale / horizontal;
+    const width = renderer.domElement.clientWidth;
+    const height = renderer.domElement.clientHeight;
+    if (!width || !height) return;
 
-    templeModelEntity.object3D.scale.setScalar(scale);
-    templeModelEntity.object3D.updateMatrixWorld(true);
+    const anchorObject3D = anchorEl.object3D;
+    anchorObject3D.updateMatrixWorld(true);
 
-    const scaledBox = computeBounds(meshRoot);
-    const scaledCenter = new THREE.Vector3();
-    const scaledSize = new THREE.Vector3();
-    scaledBox.getCenter(scaledCenter);
-    scaledBox.getSize(scaledSize);
+    const svgNs = "http://www.w3.org/2000/svg";
+    const keys = ["triangles", "geometry", "symmetry", "architecture"];
 
-    templeModelEntity.object3D.position.set(
-      -scaledCenter.x,
-      -scaledBox.min.y + CONFIG.riseOffsetY,
-      -scaledCenter.z
-    );
-    templeModelEntity.object3D.updateMatrixWorld(true);
+    keys.forEach((key) => {
+      const localPoint = LabelAnchors[key];
+      const worldPoint = localPoint.clone();
+      anchorObject3D.localToWorld(worldPoint);
 
-    state.templeHeight = scaledSize.y;
-    state.modelPlaced = true;
-    state.modelLoaded = true;
-    setProgress(85, "Temple ready");
+      const ndc = worldPoint.clone().project(camera);
+      const behindCamera = ndc.z > 1 || ndc.z < -1;
+
+      const screenX = (ndc.x * 0.5 + 0.5) * width;
+      const screenY = (-ndc.y * 0.5 + 0.5) * height;
+
+      const labelEl = dom.labels[key];
+      const offset = LABEL_OFFSETS[key];
+      const labelX = screenX + offset.dx;
+      const labelY = screenY + offset.dy;
+
+      if (behindCamera) {
+        labelEl.style.opacity = "0";
+      } else {
+        labelEl.style.transform = "translate(" + labelX + "px, " + labelY + "px) translate(-50%, -50%)";
+      }
+
+      updateLeaderLine(key, screenX, screenY, labelX, labelY);
+    });
   }
 
-  function captureFrozenPose() {
-    const p = templeAnchor.object3D.position.clone();
-    const r = templeAnchor.object3D.rotation.clone();
-    const s = templeAnchor.object3D.scale.clone();
-    state.frozenPose = { position: p, rotation: r, scale: s };
-  }
-
-  function restoreFrozenPose() {
-    if (!state.frozenPose) return;
-    templeAnchor.object3D.position.copy(state.frozenPose.position);
-    templeAnchor.object3D.rotation.copy(state.frozenPose.rotation);
-    templeAnchor.object3D.scale.copy(state.frozenPose.scale);
-    templeAnchor.object3D.updateMatrixWorld(true);
-  }
-
-  function startTempleReveal() {
-    templeAnchor.emit("temple-rise");
-    window.setTimeout(() => {
-      templeAnchor.emit("temple-rotate-start");
-      showLabelsSequentially();
-    }, 1200);
-  }
-
-  function stopTempleReveal() {
-    templeAnchor.emit("temple-rotate-pause");
-    clearLabelTimers();
-    hideLabels();
-  }
-
-  function updateLeaderLine(key, x1, y1, x2, y2, color) {
+  function updateLeaderLine(key, x1, y1, x2, y2) {
     let line = document.getElementById("leader-" + key);
     if (!line) {
       line = document.createElementNS("http://www.w3.org/2000/svg", "line");
       line.setAttribute("id", "leader-" + key);
-      line.setAttribute("stroke", color);
-      line.setAttribute("stroke-width", "3");
-      line.setAttribute("stroke-linecap", "round");
+      line.setAttribute("class", "leader-line");
+      line.setAttribute("stroke", LABEL_COLORS[key]);
       dom.leaderSvg.appendChild(line);
     }
-
     line.setAttribute("x1", x1);
     line.setAttribute("y1", y1);
     line.setAttribute("x2", x2);
     line.setAttribute("y2", y2);
-    line.style.opacity = dom.labels[key].classList.contains("visible") ? "1" : "0";
   }
 
-  function updateLabelOverlay() {
-    state.overlayRAF = window.requestAnimationFrame(updateLabelOverlay);
-
-    if (!state.targetFound || !state.modelPlaced) return;
-
-    const camera = cameraEl.getObject3D("camera");
-    if (!camera) return;
-
-    templeAnchor.object3D.updateMatrixWorld(true);
-
-    LABELS.forEach((item) => {
-      const labelEl = dom.labels[item.key];
-      const localPoint = new THREE.Vector3(0, state.templeHeight * item.ratio, 0);
-      const worldPoint = templeAnchor.object3D.localToWorld(localPoint);
-      const projected = worldPoint.clone().project(camera);
-
-      const screenX = (projected.x * 0.5 + 0.5) * window.innerWidth;
-      const screenY = (-projected.y * 0.5 + 0.5) * window.innerHeight;
-
-      const labelX = screenX + item.dx;
-      const labelY = screenY + item.dy;
-
-      labelEl.style.left = labelX + "px";
-      labelEl.style.top = labelY + "px";
-      labelEl.style.transform = "translate(-50%, -50%)";
-
-      updateLeaderLine(item.key, screenX, screenY, labelX, labelY, item.color);
-    });
-  }
-
-  function getTargetWorldPose() {
-    targetRoot.object3D.updateMatrixWorld(true);
-    const position = new THREE.Vector3();
-    const quaternion = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-    targetRoot.object3D.matrixWorld.decompose(position, quaternion, scale);
-    return { position, quaternion, scale };
-  }
-
-  function applyTargetPoseToTemple() {
-    const pose = getTargetWorldPose();
-    templeAnchor.object3D.position.copy(pose.position);
-    templeAnchor.object3D.quaternion.copy(pose.quaternion);
-    templeAnchor.object3D.scale.setScalar(1);
-    templeAnchor.object3D.updateMatrixWorld(true);
-  }
-
-  AFRAME.registerComponent("temple-placement", {
-    init: function () {
-      this.el.addEventListener("model-loaded", () => {
-        placeTempleModel();
-      });
-
-      this.el.addEventListener("model-error", () => {
-        showError("The temple.glb model could not load. Check the file path and reload.");
-      });
-    },
-  });
-
-  AFRAME.registerComponent("target-pose", {
-    init: function () {
-      this.el.addEventListener("targetFound", () => {
-        state.targetFound = true;
-        dom.scanningOverlay.classList.add("hidden");
-        applyTargetPoseToTemple();
-
-        clearLabelTimers();
-        hideLabels();
-
-        if (!state.firstRevealDone && state.modelPlaced) {
-          state.firstRevealDone = true;
-          startTempleReveal();
-        } else if (!state.firstRevealDone) {
-          const wait = window.setInterval(() => {
-            if (state.modelPlaced) {
-              window.clearInterval(wait);
-              state.firstRevealDone = true;
-              startTempleReveal();
-            }
-          }, 100);
-          state.labelTimers.push(wait);
-        } else {
-          templeAnchor.emit("temple-rotate-resume");
-          showLabelsSequentially();
-        }
-      });
-
-      this.el.addEventListener("targetLost", () => {
-        state.targetFound = false;
-        dom.scanningOverlay.classList.remove("hidden");
-        captureFrozenPose();
-        stopTempleReveal();
-      });
-    }
-  });
+  /* ------------------------------------------------------------------
+     Boot sequence
+     ------------------------------------------------------------------ */
 
   function boot() {
     if (!hasCameraSupport()) {
-      showError("This browser does not support camera access. Use Chrome on Android.");
+      showError(
+        "This browser does not support camera access. Please open " +
+          "this page in the latest version of Chrome on Android."
+      );
       return;
     }
 
     if (!isSecureContextOk()) {
-      showError("Camera access requires HTTPS or localhost.");
+      showError(
+        "Camera access requires a secure connection. Please open this " +
+          "page over HTTPS (or via localhost during development)."
+      );
       return;
     }
 
-    dom.retryButton.addEventListener("click", () => window.location.reload());
+    setProgress(10, "Starting up");
+
+    const sceneEl = document.getElementById("ar-scene");
+    const assetsEl = sceneEl.querySelector("a-assets");
+
+    let watchdog = window.setTimeout(() => {
+      showError(
+        "The camera is taking longer than expected to start. Please " +
+          "check camera permissions and try again."
+      );
+    }, READY_WATCHDOG_MS);
+
+    assetsEl.addEventListener("loaded", () => {
+      setProgress(70, "Preparing temple model");
+    });
 
     sceneEl.addEventListener("loaded", () => {
-      setProgress(25, "Scene ready");
+      setProgress(40, "Initialising AR scene");
     });
 
     sceneEl.addEventListener("arReady", () => {
-      setProgress(60, "Camera ready");
-      hideLoading();
+      window.clearTimeout(watchdog);
+      setProgress(100, "Ready");
+      window.setTimeout(hideLoadingScreen, 300);
     });
+// TEMPORARY: on-screen debug panel — shows model/tracking status
+    // directly on the page so no manual console typing is needed on
+    // mobile. Remove this whole block before final submission.
+    const debugPanel = document.createElement("div");
+    debugPanel.style.cssText =
+      "position:fixed;top:0;left:0;right:0;z-index:99999;" +
+      "background:rgba(0,0,0,0.85);color:#0f0;font:12px monospace;" +
+      "padding:8px;max-height:40vh;overflow:auto;white-space:pre-wrap;";
+    debugPanel.textContent = "Debug panel ready. Point camera at marker…";
+    document.body.appendChild(debugPanel);
 
+function updateDebugPanel() {
+      const modelEntity = document.getElementById("temple-model-entity");
+      const anchor = document.getElementById("temple-anchor");
+      const targetRoot = document.getElementById("target-root");
+      const camera = document.getElementById("ar-camera");
+      const mesh = modelEntity && modelEntity.getObject3D("mesh");
+      const renderer = sceneEl.renderer;
+      const info = renderer ? renderer.info.render : {};
+      const camObj = camera && camera.getObject3D("camera");
+      const camPos = camObj ? camObj.getWorldPosition(new AFRAME.THREE.Vector3()) : null;
+      const anchorPos = anchor ? anchor.object3D.getWorldPosition(new AFRAME.THREE.Vector3()) : null;
+      const lines = [
+        "mesh loaded: " + !!mesh,
+        "mesh.visible: " + (mesh ? mesh.visible : "n/a"),
+        "target visible: " + (targetRoot ? targetRoot.object3D.visible : "n/a"),
+        "anchor scale: " + (anchor ? JSON.stringify(anchor.object3D.scale) : "n/a"),
+        "anchor world pos: " + (anchorPos ? anchorPos.x.toFixed(2) + "," + anchorPos.y.toFixed(2) + "," + anchorPos.z.toFixed(2) : "n/a"),
+         "target-root scale: " + (targetRoot ? JSON.stringify(targetRoot.object3D.scale) : "n/a"),
+        "camera world pos: " + (camPos ? camPos.x.toFixed(2) + "," + camPos.y.toFixed(2) + "," + camPos.z.toFixed(2) : "n/a"),
+        "render calls: " + info.calls,
+        "triangles drawn: " + info.triangles,
+        "anchorsReady: " + AppState.anchorsReady,
+        "isTracking: " + AppState.isTracking,
+      ];
+      debugPanel.textContent = lines.join("\n");
+    }
+    setInterval(updateDebugPanel, 1000);
     sceneEl.addEventListener("arError", () => {
-      showError("Could not start the camera. Please allow camera permission and reload.");
+      window.clearTimeout(watchdog);
+      showError(
+        "We couldn't access your camera. Please allow camera " +
+          "permission for this site and reload the page."
+      );
     });
 
-    window.addEventListener("resize", () => {
-      dom.leaderSvg.setAttribute("width", window.innerWidth);
-      dom.leaderSvg.setAttribute("height", window.innerHeight);
-    });
+    dom.retryButton.addEventListener("click", () => window.location.reload());
 
-    dom.leaderSvg.setAttribute("width", window.innerWidth);
-    dom.leaderSvg.setAttribute("height", window.innerHeight);
-
-    window.setTimeout(() => {
-      if (!state.modelPlaced) {
-        setProgress(40, "Waiting for model");
-      }
-    }, 4000);
-
-    window.setTimeout(() => {
-      if (!state.modelPlaced) {
-        showError("The model did not become visible. Please check temple.glb and marker alignment.");
-      }
-    }, CONFIG.readinessTimeoutMs);
-
-    setProgress(10, "Starting");
+    // Kick off the label-tracking render loop; it self-gates on
+    // AppState.isTracking so it is cheap while the marker isn't visible.
     requestAnimationFrame(updateLabelOverlay);
   }
 
