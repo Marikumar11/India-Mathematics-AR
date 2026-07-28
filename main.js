@@ -26,7 +26,7 @@
 
   // Desired horizontal footprint (world units / metres) of the temple
   // once auto-scaled, so it sits neatly within the printed marker.
-  const DESIRED_FOOTPRINT = 500;
+  const DESIRED_FOOTPRINT = 0.25;
 
   // Duration (ms) of the rise + scale reveal animation. Must match the
   // `dur` values set on animation__rise / animation__scale in index.html.
