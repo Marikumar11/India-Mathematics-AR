@@ -12,6 +12,7 @@
     templeHeight: 0,
     labelTimers: [],
     overlayRAF: 0,
+    frozenPose: null,
   };
 
   const CONFIG = {
@@ -40,6 +41,7 @@
   };
 
   const sceneEl = document.getElementById("ar-scene");
+  const targetRoot = document.getElementById("target-root");
   const templeAnchor = document.getElementById("temple-anchor");
   const templeModelEntity = document.getElementById("temple-model-entity");
   const cameraEl = document.getElementById("ar-camera");
@@ -129,22 +131,15 @@
     root.traverse((node) => {
       if (!node.isMesh || !node.material) return;
       node.visible = true;
-      if (Array.isArray(node.material)) {
-        node.material.forEach((mat) => {
-          if (!mat) return;
-          mat.opacity = 1;
-          mat.transparent = false;
-          mat.metalness = 0;
-          mat.roughness = 1;
-          mat.needsUpdate = true;
-        });
-      } else {
-        node.material.opacity = 1;
-        node.material.transparent = false;
-        node.material.metalness = 0;
-        node.material.roughness = 1;
-        node.material.needsUpdate = true;
-      }
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach((mat) => {
+        if (!mat) return;
+        mat.opacity = 1;
+        mat.transparent = false;
+        mat.metalness = 0;
+        mat.roughness = 1;
+        mat.needsUpdate = true;
+      });
       node.castShadow = false;
       node.receiveShadow = false;
     });
@@ -197,10 +192,23 @@
     setProgress(85, "Temple ready");
   }
 
+  function captureFrozenPose() {
+    const p = templeAnchor.object3D.position.clone();
+    const r = templeAnchor.object3D.rotation.clone();
+    const s = templeAnchor.object3D.scale.clone();
+    state.frozenPose = { position: p, rotation: r, scale: s };
+  }
+
+  function restoreFrozenPose() {
+    if (!state.frozenPose) return;
+    templeAnchor.object3D.position.copy(state.frozenPose.position);
+    templeAnchor.object3D.rotation.copy(state.frozenPose.rotation);
+    templeAnchor.object3D.scale.copy(state.frozenPose.scale);
+    templeAnchor.object3D.updateMatrixWorld(true);
+  }
+
   function startTempleReveal() {
     templeAnchor.emit("temple-rise");
-    templeAnchor.emit("temple-glow");
-
     window.setTimeout(() => {
       templeAnchor.emit("temple-rotate-start");
       showLabelsSequentially();
@@ -261,6 +269,23 @@
     });
   }
 
+  function getTargetWorldPose() {
+    targetRoot.object3D.updateMatrixWorld(true);
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    targetRoot.object3D.matrixWorld.decompose(position, quaternion, scale);
+    return { position, quaternion, scale };
+  }
+
+  function applyTargetPoseToTemple() {
+    const pose = getTargetWorldPose();
+    templeAnchor.object3D.position.copy(pose.position);
+    templeAnchor.object3D.quaternion.copy(pose.quaternion);
+    templeAnchor.object3D.scale.setScalar(1);
+    templeAnchor.object3D.updateMatrixWorld(true);
+  }
+
   AFRAME.registerComponent("temple-placement", {
     init: function () {
       this.el.addEventListener("model-loaded", () => {
@@ -273,11 +298,12 @@
     },
   });
 
-  AFRAME.registerComponent("target-events", {
+  AFRAME.registerComponent("target-pose", {
     init: function () {
       this.el.addEventListener("targetFound", () => {
         state.targetFound = true;
         dom.scanningOverlay.classList.add("hidden");
+        applyTargetPoseToTemple();
 
         clearLabelTimers();
         hideLabels();
@@ -303,9 +329,10 @@
       this.el.addEventListener("targetLost", () => {
         state.targetFound = false;
         dom.scanningOverlay.classList.remove("hidden");
+        captureFrozenPose();
         stopTempleReveal();
       });
-    },
+    }
   });
 
   function boot() {
@@ -349,8 +376,8 @@
     }, 4000);
 
     window.setTimeout(() => {
-      if (!state.arReady) {
-        showError("The camera did not start in time. Please check permission and reload.");
+      if (!state.modelPlaced) {
+        showError("The model did not become visible. Please check temple.glb and marker alignment.");
       }
     }, CONFIG.readinessTimeoutMs);
 
