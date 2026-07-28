@@ -156,24 +156,13 @@
       });
     },
 
-   // placeModel: function () {
-      //const mesh = this.el.getObject3D("mesh");
-     // if (!mesh) return;
+   placeModel: function () {
+      const mesh = this.el.getObject3D("mesh");
+      if (!mesh) return;
 
-      //const THREE = AFRAME.THREE;
+      const THREE = AFRAME.THREE;
 
-     placeModel: function () {
-    const mesh = this.el.getObject3D("mesh");
-    if (!mesh) return;
-
-    this.el.object3D.position.set(0, 0, 0);
-    this.el.object3D.scale.set(1, 1, 1);
-    this.el.object3D.rotation.set(0, 0, 0);
-
-    AppState.templeHeight = 1;
-    AppState.anchorsReady = true;
-}
-
+     
       // Ensure the entity starts from a neutral transform before we
       // measure it — position/scale are set explicitly here so the
       // math below is predictable no matter what index.html specifies.
