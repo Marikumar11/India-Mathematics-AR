@@ -13,7 +13,6 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 </head>
 <body>
-
   <div id="loading-screen" role="status" aria-live="polite">
     <div class="loading-content">
       <div class="loading-logo">🧮</div>
@@ -32,7 +31,9 @@
     <div class="error-content">
       <div class="error-icon">⚠️</div>
       <h2>Camera Unavailable</h2>
-      <p id="error-message">We couldn't access your camera. Please check the troubleshooting steps below.</p>
+      <p id="error-message">
+        We couldn't access your camera. Please check the troubleshooting steps below.
+      </p>
       <ul class="error-list">
         <li>Allow camera permission for this site in your browser settings.</li>
         <li>This page must be served over <strong>HTTPS</strong> (or localhost).</li>
@@ -92,49 +93,27 @@
       <a-asset-item id="temple-model" src="./assets/temple.glb"></a-asset-item>
     </a-assets>
 
-    <a-entity light="type: ambient; color: #ffffff; intensity: 0.9"></a-entity>
-    <a-entity light="type: directional; color: #fff4dd; intensity: 1.1; castShadow: true" position="1 3 2"></a-entity>
+    <a-entity light="type: ambient; color: #ffffff; intensity: 1.2"></a-entity>
+    <a-entity light="type: directional; color: #fff4dd; intensity: 1.4" position="1 3 2"></a-entity>
+    <a-entity light="type: directional; color: #ffe7a8; intensity: 0.8" position="-2 2 1"></a-entity>
 
     <a-entity id="target-root" mindar-image-target="targetIndex: 0" target-events>
       <a-entity
         id="temple-anchor"
-        position="0 -0.3 0"
+        position="0 0 0"
+        rotation="0 0 0"
         scale="0.01 0.01 0.01"
-        animation__rise="property: position; from: 0 -0.3 0; to: 0 0 0; dur: 1200; easing: easeOutBack; startEvents: temple-rise"
+        animation__rise="property: position; from: 0 -0.12 0; to: 0 0 0; dur: 1200; easing: easeOutBack; startEvents: temple-rise"
         animation__scale="property: scale; from: 0.01 0.01 0.01; to: 1 1 1; dur: 1200; easing: easeOutBack; startEvents: temple-rise"
-        animation__rotate="property: rotation; from: 0 0 0; to: 0 360 0; dur: 20000; easing: linear; loop: true; startEvents: temple-rotate-start; pauseEvents: temple-rotate-pause; resumeEvents: temple-rotate-resume"
+        animation__rotate="property: rotation; from: 0 0 0; to: 0 360 0; dur: 26000; easing: linear; loop: true; startEvents: temple-rotate-start; pauseEvents: temple-rotate-pause; resumeEvents: temple-rotate-resume"
       >
-        <a-entity
-          id="glow-light"
-          light="type: point; color: #ffcc55; intensity: 0; distance: 6; decay: 2"
-          position="0 0.6 0"
-          animation__glowpulse="property: light.intensity; from: 0; to: 1.4; dir: alternate; dur: 900; loop: true; easing: easeInOutSine; startEvents: temple-glow"
-        ></a-entity>
-
         <a-entity
           id="temple-model-entity"
           gltf-model="#temple-model"
-          scale="0.1 0.1 0.1"
           position="0 0 0"
           rotation="0 0 0"
-          shadow="cast: true; receive: true"
+          scale="1 1 1"
           temple-placement
-        ></a-entity>
-
-        <a-entity
-          geometry="primitive: circle; radius: 0.3; segments: 48"
-          material="color: #000000; opacity: 0.35; transparent: true; shader: flat"
-          rotation="-90 0 0"
-          position="0 0.001 0"
-        ></a-entity>
-
-        <a-entity
-          id="glow-ring"
-          geometry="primitive: ring; radiusInner: 0.28; radiusOuter: 0.42; segments: 48"
-          material="color: #ffd76a; shader: flat; opacity: 0; transparent: true; side: double"
-          rotation="-90 0 0"
-          position="0 0.002 0"
-          animation__ringglow="property: material.opacity; from: 0; to: 0.55; dir: alternate; dur: 1400; loop: true; easing: easeInOutSine; startEvents: temple-glow"
         ></a-entity>
       </a-entity>
     </a-entity>
