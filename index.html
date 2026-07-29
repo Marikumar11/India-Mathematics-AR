@@ -14,12 +14,13 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- black loading overlay (hidden by JS after loading) -->
+  <!-- black loading overlay -->
   <div id="loading-overlay">
     <div class="loader-container">
       <div class="loader-spinner"></div>
-      <div class="loader-text">Loading India Mathematics AR...</div>
+      <div class="loader-text">India Mathematics AR</div>
       <div class="loader-progress" id="progress-bar"><span style="width:0%"></span></div>
+      <div class="loader-subtext">Initializing camera...</div>
     </div>
   </div>
 
@@ -47,7 +48,6 @@
           position="0 0 0"
           rotation="0 0 0"
           shadow="receive: true"
-          animation-mixer
         ></a-gltf-model>
 
         <!-- labels (initially hidden, shown via JS one by one) -->
