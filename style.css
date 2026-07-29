@@ -1,174 +1,383 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* ==========================================================================
+   India Mathematics AR — Stylesheet
+   No inline styles are used anywhere in index.html; every visual rule
+   lives here so the markup stays clean and the UI is easy to re-skin.
+   ========================================================================== */
+
+:root {
+  --color-yellow: #ffd700;
+  --color-green: #34d67a;
+  --color-cyan: #38e0ff;
+  --color-orange: #ff8c3c;
+  --color-bg: #000000;
+  --color-panel: rgba(10, 10, 12, 0.92);
+  --font-main: "Segoe UI", "Trebuchet MS", Roboto, Arial, sans-serif;
 }
 
-html, body {
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #000000;
+  background: transparent;
+  font-family: var(--font-main);
   color: #ffffff;
 }
 
-#loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: #0a0a0a;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-  transition: opacity 0.6s ease-in-out;
-  pointer-events: none;
+.hidden {
+  display: none !important;
 }
 
-#loading-overlay .loader-container {
+/* ==========================================================================
+   Loading Screen
+   ========================================================================== */
+
+#loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: radial-gradient(circle at 50% 40%, #1a1a1f 0%, #000000 75%);
   display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
-  gap: 1.2rem;
-  padding: 2rem;
-  max-width: 400px;
-  width: 90%;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.loading-content {
+  max-width: 420px;
+  width: 100%;
+}
+
+.loading-logo {
+  font-size: 56px;
+  margin-bottom: 8px;
+  animation: pulse-scale 1.8s ease-in-out infinite;
+}
+
+.loading-title {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  letter-spacing: 0.5px;
+  background: linear-gradient(90deg, #ffd700, #ff8c3c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.loading-subtitle {
+  font-size: 14px;
+  color: #b8b8c2;
+  margin: 0 0 28px;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #ffd700, #ff8c3c);
+  transition: width 0.35s ease-out;
+}
+
+.progress-label {
+  font-size: 13px;
+  color: #d8d8e0;
+  margin: 0 0 24px;
+}
+
+.loading-hint {
+  font-size: 12px;
+  color: #83838f;
+  margin: 0;
+}
+
+@keyframes pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+/* ==========================================================================
+   Error Screen
+   ========================================================================== */
+
+#error-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: #0a0a0c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.error-content {
+  max-width: 440px;
+  background: var(--color-panel);
+  border: 1px solid rgba(255, 140, 60, 0.35);
+  border-radius: 16px;
+  padding: 28px 24px;
   text-align: center;
 }
 
-.loader-spinner {
-  width: 60px;
-  height: 60px;
-  border: 4px solid rgba(255, 215, 0, 0.15);
-  border-top: 4px solid #FFD700;
-  border-right: 4px solid #FF6B00;
-  border-radius: 50%;
-  animation: spin 0.9s cubic-bezier(0.6, 0.0, 0.4, 1.0) infinite;
-  box-shadow: 0 0 30px rgba(255, 215, 0, 0.15);
+.error-icon {
+  font-size: 42px;
+  margin-bottom: 12px;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.error-content h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  color: var(--color-orange);
 }
 
-.loader-text {
-  font-size: 1.4rem;
+.error-content p {
+  font-size: 14px;
+  color: #d6d6de;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.error-list {
+  text-align: left;
+  font-size: 13px;
+  color: #c6c6d0;
+  line-height: 1.7;
+  margin: 0 0 20px;
+  padding-left: 20px;
+}
+
+.retry-button {
+  background: linear-gradient(90deg, #ffd700, #ff8c3c);
+  border: none;
+  border-radius: 999px;
+  padding: 12px 28px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  background: linear-gradient(90deg, #FFD700, #FF8C00);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #1a1a1a;
+  cursor: pointer;
 }
 
-.loader-subtext {
-  font-size: 0.9rem;
-  color: #aaa;
-  letter-spacing: 0.04em;
-  min-height: 1.5rem;
+.retry-button:active {
+  transform: scale(0.97);
 }
 
-.loader-progress {
-  width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+/* ==========================================================================
+   Scanning Overlay
+   ========================================================================== */
+
+#scanning-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
 
-.loader-progress span {
-  display: block;
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #FFD700, #FF6B00, #FFD700);
-  background-size: 200% 100%;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-  animation: shimmer 1.8s linear infinite;
-  box-shadow: 0 0 12px rgba(255, 215, 0, 0.25);
+.scan-frame {
+  position: relative;
+  width: min(72vw, 320px);
+  height: min(72vw, 320px);
+  margin-bottom: 22px;
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+.scan-corner {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--color-yellow);
 }
 
-.a-canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
-  position: fixed !important;
+.scan-corner.top-left {
   top: 0;
   left: 0;
-  z-index: 1;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 8px 0 0 0;
 }
 
-.mindar-ui-overlay {
-  display: none !important;
+.scan-corner.top-right {
+  top: 0;
+  right: 0;
+  border-left: none;
+  border-bottom: none;
+  border-radius: 0 8px 0 0;
 }
 
-.a-enter-vr-button,
-.a-orientation-modal {
-  display: none !important;
+.scan-corner.bottom-left {
+  bottom: 0;
+  left: 0;
+  border-right: none;
+  border-top: none;
+  border-radius: 0 0 0 8px;
 }
 
-@media (max-width: 640px) {
-  .loader-text {
-    font-size: 1.1rem;
-  }
-  .loader-spinner {
-    width: 48px;
-    height: 48px;
-  }
-  #loading-overlay .loader-container {
-    gap: 1rem;
-    padding: 1.5rem;
-  }
+.scan-corner.bottom-right {
+  bottom: 0;
+  right: 0;
+  border-left: none;
+  border-top: none;
+  border-radius: 0 0 8px 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .loader-spinner {
-    animation-duration: 2s;
-  }
-  .loader-progress span {
-    animation: none;
-  }
-  #loading-overlay {
-    transition: opacity 0.3s;
-  }
+.scan-line {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-cyan), transparent);
+  animation: scan-sweep 2.2s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--color-cyan);
 }
 
-.a-text {
-  font-family: 'Segoe UI', 'Exo 2', sans-serif !important;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
-  pointer-events: none;
-  user-select: none;
+@keyframes scan-sweep {
+  0% { top: 6%; }
+  50% { top: 94%; }
+  100% { top: 6%; }
 }
 
-.label-entity {
-  transition: opacity 0.8s ease;
+.scan-instruction {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-size: 14px;
+  color: #f0f0f5;
 }
 
-::-webkit-scrollbar {
-  display: none;
-}
+/* ==========================================================================
+   AR Scene Sizing
+   `embedded` mode on a-scene does not auto-fullscreen itself. The wrapper
+   div and its WebGL canvas both need explicit sizing/stacking so the
+   canvas (rendered with a transparent clear color, see index.html
+   renderer="...alpha: true") sits just above MindAR's camera <video>
+   (which MindAR itself places at z-index -2) and below all UI overlays.
+   ========================================================================== */
 
-::selection {
-  background: #FFD700;
-  color: #000;
-}
-
-body {
-  background: #000;
-  overflow: hidden;
+#ar-scene {
   position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+}
+
+#ar-scene canvas {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: -1 !important;
+}
+
+/* ==========================================================================
+   AR Label Overlay
+   Labels are absolutely positioned; JavaScript updates --x / --y custom
+   properties (translated via transform) every frame to track the model.
+   ========================================================================== */
+
+#ar-labels-container {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+#leader-line-svg {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  touch-action: none;
+}
+
+.leader-line {
+  fill: none;
+  stroke-width: 2;
+  opacity: 0.9;
+}
+
+.ar-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(-9999px, -9999px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(8, 8, 10, 0.78);
+  border: 1.5px solid currentColor;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  backdrop-filter: blur(2px);
+}
+
+.ar-label.visible {
+  opacity: 1;
+}
+
+.ar-label .label-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.label-yellow {
+  color: var(--color-yellow);
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.35);
+}
+
+.label-green {
+  color: var(--color-green);
+  box-shadow: 0 0 14px rgba(52, 214, 122, 0.35);
+}
+
+.label-cyan {
+  color: var(--color-cyan);
+  box-shadow: 0 0 14px rgba(56, 224, 255, 0.35);
+}
+
+.label-orange {
+  color: var(--color-orange);
+  box-shadow: 0 0 14px rgba(255, 140, 60, 0.35);
+}
+
+.label-title {
+  font-size: 15px;
+  padding: 10px 18px;
+}
+
+/* Small screens: shrink label text slightly so nothing overflows */
+@media (max-width: 380px) {
+  .ar-label {
+    font-size: 12px;
+    padding: 6px 11px;
+  }
+  .label-title {
+    font-size: 13px;
+  }
 }
