@@ -5,53 +5,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>India Mathematics AR</title>
   
-  <!-- A-Frame (latest stable) -->
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
-  <!-- MindAR (latest stable) -->
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <!-- MindAR -->
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-aframe.prod.js"></script>
 
-  <!-- custom styles -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- black loading overlay -->
   <div id="loading-overlay">
     <div class="loader-container">
       <div class="loader-spinner"></div>
       <div class="loader-text">India Mathematics AR</div>
+      <div class="loader-subtext" id="status-text">Initializing...</div>
       <div class="loader-progress" id="progress-bar"><span style="width:0%"></span></div>
-      <div class="loader-subtext">Initializing camera...</div>
     </div>
   </div>
 
-  <!-- AR scene -->
   <a-scene
     id="scene"
-    mindar-image="imageTargetSrc: ./assets/targets.mind; autoStart: true; uiLoading: no; uiScanning: no;"
+    mindar-image="imageTargetSrc: ./assets/targets.mind;"
     renderer="antialias: true; alpha: false;"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
     embedded
+    arjs="sourceType: webcam; debugUIEnabled: false;"
   >
-    <!-- camera (required for mindar) -->
-    <a-camera position="0 0 0" look-controls="enabled: false" cursor="rayOrigin: mouse"></a-camera>
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- image target (targetIndex 0) -->
     <a-entity mindar-image-target="targetIndex: 0">
-      <!-- 3D temple group -->
       <a-entity id="temple-group" position="0 0 0">
-        <!-- model loader -->
         <a-gltf-model
           id="temple-model"
           src="./assets/temple.glb"
           scale="0.8 0.8 0.8"
           position="0 0 0"
           rotation="0 0 0"
-          shadow="receive: true"
         ></a-gltf-model>
 
-        <!-- labels (initially hidden, shown via JS one by one) -->
-        <!-- Label 1: TRIANGLES (upper tower) -->
+        <!-- Label 1 -->
         <a-entity id="label1" class="label-entity" visible="false">
           <a-entity position="0 1.2 0.3">
             <a-entity text="value: 🔺 TRIANGLES; color: #FFD700; align: center; font: exo2bold; width: 2;"
@@ -61,7 +53,7 @@
           </a-entity>
         </a-entity>
 
-        <!-- Label 2: GEOMETRY (middle) -->
+        <!-- Label 2 -->
         <a-entity id="label2" class="label-entity" visible="false">
           <a-entity position="0.6 0.5 0.3">
             <a-entity text="value: 📐 GEOMETRY; color: #4CAF50; align: center; font: exo2bold; width: 1.8;"
@@ -71,7 +63,7 @@
           </a-entity>
         </a-entity>
 
-        <!-- Label 3: SYMMETRY (center axis) -->
+        <!-- Label 3 -->
         <a-entity id="label3" class="label-entity" visible="false">
           <a-entity position="-0.5 0.0 0.3">
             <a-entity text="value: ⚖ SYMMETRY; color: #00BCD4; align: center; font: exo2bold; width: 1.8;"
@@ -81,7 +73,7 @@
           </a-entity>
         </a-entity>
 
-        <!-- Label 4: ANCIENT INDIAN ARCHITECTURE (bottom title) -->
+        <!-- Label 4 -->
         <a-entity id="label4" class="label-entity" visible="false">
           <a-entity position="0 -0.9 0.3">
             <a-entity text="value: 🏛 ANCIENT INDIAN ARCHITECTURE; color: #FF9800; align: center; font: exo2bold; width: 2.5;"
@@ -91,19 +83,15 @@
       </a-entity>
     </a-entity>
 
-    <!-- lights -->
     <a-entity light="type: ambient; color: #404060; intensity: 0.6"></a-entity>
     <a-entity light="type: directional; color: #FFEEDD; intensity: 1.2; castShadow: true;"
       position="1 3 2"></a-entity>
     <a-entity light="type: directional; color: #CCDDFF; intensity: 0.5;"
       position="-2 1 -1"></a-entity>
-
-    <!-- golden glow (point light near temple) -->
     <a-entity light="type: point; color: #FFAA33; intensity: 0.8; distance: 4; decay: 1;"
       position="0 1.2 0.8"></a-entity>
   </a-scene>
 
-  <!-- main application script -->
   <script src="main.js"></script>
 </body>
 </html>
